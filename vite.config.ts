@@ -2,7 +2,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Deploy alvo: GitHub Pages em https://rpschumacher.github.io/pendencias/
+// Por isso o `base` e o `start_url` apontam para o subcaminho.
 export default defineConfig({
+  base: '/pendencias/',
   plugins: [
     react(),
     VitePWA({
@@ -16,7 +19,8 @@ export default defineConfig({
         background_color: '#0f172a',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/',
+        scope: '/pendencias/',
+        start_url: '/pendencias/',
         icons: [
           {
             src: 'icon-192.png',
