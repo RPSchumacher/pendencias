@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Task } from '../lib/types'
 import { supabase, isMe } from '../lib/supabase'
@@ -11,25 +12,82 @@ type Props = {
   onReload: () => void
 }
 
+const ALL = '__all__'
+
 export default function Dashboard({ tasks, loading, onEdit, onReload }: Props) {
   const today = todayISO()
 
-  const atrasados = tasks
-    .filter((t) => t.prazo && t.prazo < today)
-    .sort((a, b) => (a.prazo ?? '').localeCompare(b.prazo ?? ''))
+  // Estado dos filtros por responsável em cada seção com múltiplos responsáveis.
+  const [filtroAcompanhando, setFiltroAcompanhando] = useState<string>(ALL)
+  const [filtroEntrega, setFiltroEntrega] = useState<string>(ALL)
 
-  const minhas = tasks
-    .filter((t) => isMe(t.responsavel) && !(t.prazo && t.prazo < today))
-    .sort((a, b) => {
-      if (a.prazo && b.prazo) return a.prazo.localeCompare(b.prazo)
-      if (a.prazo) return -1
-      if (b.prazo) return 1
-      return b.criado_em.localeCompare(a.criado_em)
-    })
+  // Atrasados: qualquer tarefa com prazo vencido, independente da categoria.
+  // Sempre aparece no topo — é um alerta, não uma categoria.
+  const atrasados = useMemo(
+    () =>
+      tasks
+        .filter((t) => t.prazo && t.prazo < today)
+        .sort((a, b) => (a.prazo ?? '').localeCompare(b.prazo ?? '')),
+    [tasks, today],
+  )
 
-  const acompanhando = tasks
-    .filter((t) => !isMe(t.responsavel) && !(t.prazo && t.prazo < today))
-    .sort((a, b) => a.atualizado_em.localeCompare(b.atualizado_em))
+  // Tarefas "ativas no dia-a-dia" — exclui atrasados (que já aparecem no topo)
+  // e separa em 3 blocos mutuamente exclusivos.
+  const naoAtrasadas = useMemo(
+    () => tasks.filter((t) => !(t.prazo && t.prazo < today)),
+    [tasks, today],
+  )
+
+  // Entrega de trabalho: qualquer tarefa com a flag ligada (tem precedência
+  // sobre minhas/acompanhando — se está marcada, aparece só aqui).
+  const entregaTrabalho = useMemo(
+    () =>
+      naoAtrasadas
+        .filter((t) => t.entrega_trabalho)
+        .sort((a, b) => a.atualizado_em.localeCompare(b.atualizado_em)),
+    [naoAtrasadas],
+  )
+
+  const minhas = useMemo(
+    () =>
+      naoAtrasadas
+        .filter((t) => !t.entrega_trabalho && isMe(t.responsavel))
+        .sort((a, b) => {
+          if (a.prazo && b.prazo) return a.prazo.localeCompare(b.prazo)
+          if (a.prazo) return -1
+          if (b.prazo) return 1
+          return b.criado_em.localeCompare(a.criado_em)
+        }),
+    [naoAtrasadas],
+  )
+
+  const acompanhando = useMemo(
+    () =>
+      naoAtrasadas
+        .filter((t) => !t.entrega_trabalho && !isMe(t.responsavel))
+        .sort((a, b) => a.atualizado_em.localeCompare(b.atualizado_em)),
+    [naoAtrasadas],
+  )
+
+  // Listas de responsáveis únicos para popular os dropdowns de filtro.
+  const respsAcompanhando = useMemo(
+    () => Array.from(new Set(acompanhando.map((t) => t.responsavel))).sort(),
+    [acompanhando],
+  )
+  const respsEntrega = useMemo(
+    () => Array.from(new Set(entregaTrabalho.map((t) => t.responsavel))).sort(),
+    [entregaTrabalho],
+  )
+
+  const acompanhandoFiltrado =
+    filtroAcompanhando === ALL
+      ? acompanhando
+      : acompanhando.filter((t) => t.responsavel === filtroAcompanhando)
+
+  const entregaFiltrada =
+    filtroEntrega === ALL
+      ? entregaTrabalho
+      : entregaTrabalho.filter((t) => t.responsavel === filtroEntrega)
 
   async function finalize(t: Task) {
     await supabase
@@ -69,21 +127,58 @@ export default function Dashboard({ tasks, loading, onEdit, onReload }: Props) {
           ))}
         </Section>
       )}
+
       {minhas.length > 0 && (
         <Section title="Minhas tarefas" count={minhas.length}>
           {minhas.map((t) => (
+            <TaskCard key={t.id} task={t} onEdit={onEdit} onFinalize={finalize} />
+          ))}
+        </Section>
+      )}
+
+      {acompanhando.length > 0 && (
+        <Section
+          title="Acompanhando"
+          count={acompanhandoFiltrado.length}
+          totalCount={acompanhando.length}
+          filter={
+            respsAcompanhando.length > 1 ? (
+              <FiltroResponsavel
+                value={filtroAcompanhando}
+                onChange={setFiltroAcompanhando}
+                options={respsAcompanhando}
+              />
+            ) : null
+          }
+        >
+          {acompanhandoFiltrado.map((t) => (
             <TaskCard
               key={t.id}
               task={t}
               onEdit={onEdit}
               onFinalize={finalize}
+              showAging
             />
           ))}
         </Section>
       )}
-      {acompanhando.length > 0 && (
-        <Section title="Acompanhando" count={acompanhando.length}>
-          {acompanhando.map((t) => (
+
+      {entregaTrabalho.length > 0 && (
+        <Section
+          title="Acompanhamento de entrega de trabalho"
+          count={entregaFiltrada.length}
+          totalCount={entregaTrabalho.length}
+          filter={
+            respsEntrega.length > 1 ? (
+              <FiltroResponsavel
+                value={filtroEntrega}
+                onChange={setFiltroEntrega}
+                options={respsEntrega}
+              />
+            ) : null
+          }
+        >
+          {entregaFiltrada.map((t) => (
             <TaskCard
               key={t.id}
               task={t}
@@ -98,20 +193,52 @@ export default function Dashboard({ tasks, loading, onEdit, onReload }: Props) {
   )
 }
 
+function FiltroResponsavel({
+  value,
+  onChange,
+  options,
+}: {
+  value: string
+  onChange: (v: string) => void
+  options: string[]
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="text-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1"
+      aria-label="Filtrar por responsável"
+    >
+      <option value={ALL}>Todos</option>
+      {options.map((o) => (
+        <option key={o} value={o}>
+          {o}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 function Section({
   title,
   count,
+  totalCount,
   tone,
+  filter,
   children,
 }: {
   title: string
   count: number
+  totalCount?: number
   tone?: 'late'
+  filter?: ReactNode
   children: ReactNode
 }) {
+  const showingFiltered =
+    typeof totalCount === 'number' && totalCount !== count
   return (
     <section>
-      <div className="flex items-baseline justify-between mb-2 px-1">
+      <div className="flex items-center justify-between mb-2 px-1 gap-2">
         <h2
           className={`text-xs font-semibold uppercase tracking-wide ${
             tone === 'late'
@@ -121,7 +248,12 @@ function Section({
         >
           {title}
         </h2>
-        <span className="text-xs text-slate-400">{count}</span>
+        <div className="flex items-center gap-2">
+          {filter}
+          <span className="text-xs text-slate-400 tabular-nums">
+            {showingFiltered ? `${count}/${totalCount}` : count}
+          </span>
+        </div>
       </div>
       <div className="space-y-2">{children}</div>
     </section>

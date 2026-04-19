@@ -25,6 +25,9 @@ export default function TaskForm({
   const [cliente, setCliente] = useState(task?.cliente ?? '')
   const [prazo, setPrazo] = useState(task?.prazo ?? '')
   const [notas, setNotas] = useState(task?.notas ?? '')
+  const [entregaTrabalho, setEntregaTrabalho] = useState(
+    task?.entrega_trabalho ?? false,
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -54,6 +57,7 @@ export default function TaskForm({
       cliente: cliente.trim() || null,
       prazo: prazo || null,
       notas: notas.trim() || null,
+      entrega_trabalho: entregaTrabalho,
     }
 
     try {
@@ -83,6 +87,7 @@ export default function TaskForm({
             cliente: normalized.cliente,
             prazo: normalized.prazo,
             notas: finalNotas,
+            entrega_trabalho: normalized.entrega_trabalho,
           })
           .eq('id', task.id)
         if (err) throw err
@@ -210,6 +215,19 @@ export default function TaskForm({
               className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </Field>
+
+          <label className="flex items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-3 py-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={entregaTrabalho}
+              onChange={(e) => setEntregaTrabalho(e.target.checked)}
+              className="h-4 w-4 accent-cyan-600"
+            />
+            <span className="text-sm">Acompanhamento de entrega de trabalho</span>
+            <span className="ml-auto text-xs text-slate-500">
+              {entregaTrabalho ? 'Sim' : 'Não'}
+            </span>
+          </label>
 
           {error && <div className="text-sm text-rose-500">{error}</div>}
         </div>

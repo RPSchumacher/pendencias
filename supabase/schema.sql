@@ -6,18 +6,23 @@
 create extension if not exists pgcrypto;
 
 create table if not exists public.tasks (
-  id              uuid primary key default gen_random_uuid(),
-  user_id         uuid not null references auth.users(id) on delete cascade,
-  titulo          text not null,
-  responsavel     text not null default 'eu',
-  cliente         text,
-  prazo           date,
-  notas           text,
-  finalizado      boolean not null default false,
-  finalizado_em   timestamptz,
-  criado_em       timestamptz not null default now(),
-  atualizado_em   timestamptz not null default now()
+  id                uuid primary key default gen_random_uuid(),
+  user_id           uuid not null references auth.users(id) on delete cascade,
+  titulo            text not null,
+  responsavel       text not null default 'eu',
+  cliente           text,
+  prazo             date,
+  notas             text,
+  entrega_trabalho  boolean not null default false,
+  finalizado        boolean not null default false,
+  finalizado_em     timestamptz,
+  criado_em         timestamptz not null default now(),
+  atualizado_em     timestamptz not null default now()
 );
+
+-- Migração para bancos existentes: adiciona a coluna se ainda não existir.
+alter table public.tasks
+  add column if not exists entrega_trabalho boolean not null default false;
 
 -- Trigger: toda vez que a linha for atualizada, refresca atualizado_em.
 -- Isso é o que faz o contador de "dias sem movimento" funcionar — quando
