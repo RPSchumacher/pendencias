@@ -17,25 +17,62 @@ const ALL = '__all__'
 export default function Dashboard({ tasks, loading, onEdit, onReload }: Props) {
   const today = todayISO()
 
-  // Estado dos filtros por responsável em cada seção com múltiplos responsáveis.
-  const [filtroAcompanhando, setFiltroAcompanhando] = useState<string>(ALL)
-  const [filtroEntrega, setFiltroEntrega] = useState<string>(ALL)
+  // Filtros globais que cruzam todos os blocos.
+  const [query, setQuery] = useState('')
+  const [responsavelFiltro, setResponsavelFiltro] = useState<string>(ALL)
+
+  const hasFilter = query.trim().length > 0 || responsavelFiltro !== ALL
+
+  // Lista de responsáveis únicos em todas as tarefas ativas, para popular o
+  // dropdown. "Eu" aparece como label amigável.
+  const responsaveisOptions = useMemo(() => {
+    const nomes = Array.from(new Set(tasks.map((t) => t.responsavel))).sort(
+      (a, b) => {
+        // "eu" no topo
+        if (isMe(a)) return -1
+        if (isMe(b)) return 1
+        return a.localeCompare(b)
+      },
+    )
+    return nomes
+  }, [tasks])
+
+  // Aplica os filtros globais antes de computar as seções.
+  const filteredTasks = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return tasks.filter((t) => {
+      if (
+        responsavelFiltro !== ALL &&
+        t.responsavel.trim().toLowerCase() !==
+          responsavelFiltro.trim().toLowerCase()
+      ) {
+        return false
+      }
+      if (!q) return true
+      return (
+        t.titulo.toLowerCase().includes(q) ||
+        t.responsavel.toLowerCase().includes(q) ||
+        (t.cliente?.toLowerCase().includes(q) ?? false) ||
+        (t.notas?.toLowerCase().includes(q) ?? false)
+      )
+    })
+  }, [tasks, query, responsavelFiltro])
 
   // Atrasados: qualquer tarefa com prazo vencido, independente da categoria.
   // Sempre aparece no topo — é um alerta, não uma categoria.
   const atrasados = useMemo(
     () =>
-      tasks
+      filteredTasks
         .filter((t) => t.prazo && t.prazo < today)
         .sort((a, b) => (a.prazo ?? '').localeCompare(b.prazo ?? '')),
-    [tasks, today],
+    [filteredTasks, today],
   )
 
   // Tarefas "ativas no dia-a-dia" — exclui atrasados (que já aparecem no topo)
   // e separa em 3 blocos mutuamente exclusivos.
   const naoAtrasadas = useMemo(
-    () => tasks.filter((t) => !(t.prazo && t.prazo < today)),
-    [tasks, today],
+    () => filteredTasks.filter((t) => !(t.prazo && t.prazo < today)),
+    [filteredTasks, today],
   )
 
   // Entrega de trabalho: qualquer tarefa com a flag ligada (tem precedência
@@ -69,26 +106,6 @@ export default function Dashboard({ tasks, loading, onEdit, onReload }: Props) {
     [naoAtrasadas],
   )
 
-  // Listas de responsáveis únicos para popular os dropdowns de filtro.
-  const respsAcompanhando = useMemo(
-    () => Array.from(new Set(acompanhando.map((t) => t.responsavel))).sort(),
-    [acompanhando],
-  )
-  const respsEntrega = useMemo(
-    () => Array.from(new Set(entregaTrabalho.map((t) => t.responsavel))).sort(),
-    [entregaTrabalho],
-  )
-
-  const acompanhandoFiltrado =
-    filtroAcompanhando === ALL
-      ? acompanhando
-      : acompanhando.filter((t) => t.responsavel === filtroAcompanhando)
-
-  const entregaFiltrada =
-    filtroEntrega === ALL
-      ? entregaTrabalho
-      : entregaTrabalho.filter((t) => t.responsavel === filtroEntrega)
-
   async function finalize(t: Task) {
     await supabase
       .from('tasks')
@@ -112,130 +129,161 @@ export default function Dashboard({ tasks, loading, onEdit, onReload }: Props) {
     )
   }
 
+  const nadaCasouFiltro =
+    hasFilter &&
+    atrasados.length === 0 &&
+    minhas.length === 0 &&
+    acompanhando.length === 0 &&
+    entregaTrabalho.length === 0
+
   return (
-    <div className="space-y-6">
-      {atrasados.length > 0 && (
-        <Section title="Atrasados" count={atrasados.length} tone="late">
-          {atrasados.map((t) => (
-            <TaskCard
-              key={t.id}
-              task={t}
-              onEdit={onEdit}
-              onFinalize={finalize}
-              showAging={!isMe(t.responsavel)}
-            />
-          ))}
-        </Section>
-      )}
+    <div className="space-y-4">
+      <FilterBar
+        query={query}
+        onQueryChange={setQuery}
+        responsavel={responsavelFiltro}
+        onResponsavelChange={setResponsavelFiltro}
+        responsaveis={responsaveisOptions}
+        hasFilter={hasFilter}
+        onClear={() => {
+          setQuery('')
+          setResponsavelFiltro(ALL)
+        }}
+      />
 
-      {minhas.length > 0 && (
-        <Section title="Minhas tarefas" count={minhas.length}>
-          {minhas.map((t) => (
-            <TaskCard key={t.id} task={t} onEdit={onEdit} onFinalize={finalize} />
-          ))}
-        </Section>
-      )}
+      {nadaCasouFiltro ? (
+        <div className="text-center py-10 text-sm text-slate-500">
+          Nada encontrado para esse filtro.
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {atrasados.length > 0 && (
+            <Section title="Atrasados" count={atrasados.length} tone="late">
+              {atrasados.map((t) => (
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  onEdit={onEdit}
+                  onFinalize={finalize}
+                  showAging={!isMe(t.responsavel)}
+                />
+              ))}
+            </Section>
+          )}
 
-      {acompanhando.length > 0 && (
-        <Section
-          title="Acompanhando"
-          count={acompanhandoFiltrado.length}
-          totalCount={acompanhando.length}
-          filter={
-            respsAcompanhando.length > 1 ? (
-              <FiltroResponsavel
-                value={filtroAcompanhando}
-                onChange={setFiltroAcompanhando}
-                options={respsAcompanhando}
-              />
-            ) : null
-          }
-        >
-          {acompanhandoFiltrado.map((t) => (
-            <TaskCard
-              key={t.id}
-              task={t}
-              onEdit={onEdit}
-              onFinalize={finalize}
-              showAging
-            />
-          ))}
-        </Section>
-      )}
+          {minhas.length > 0 && (
+            <Section title="Minhas tarefas" count={minhas.length}>
+              {minhas.map((t) => (
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  onEdit={onEdit}
+                  onFinalize={finalize}
+                />
+              ))}
+            </Section>
+          )}
 
-      {entregaTrabalho.length > 0 && (
-        <Section
-          title="Acompanhamento de entrega de trabalho"
-          count={entregaFiltrada.length}
-          totalCount={entregaTrabalho.length}
-          filter={
-            respsEntrega.length > 1 ? (
-              <FiltroResponsavel
-                value={filtroEntrega}
-                onChange={setFiltroEntrega}
-                options={respsEntrega}
-              />
-            ) : null
-          }
-        >
-          {entregaFiltrada.map((t) => (
-            <TaskCard
-              key={t.id}
-              task={t}
-              onEdit={onEdit}
-              onFinalize={finalize}
-              showAging
-            />
-          ))}
-        </Section>
+          {acompanhando.length > 0 && (
+            <Section title="Acompanhando" count={acompanhando.length}>
+              {acompanhando.map((t) => (
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  onEdit={onEdit}
+                  onFinalize={finalize}
+                  showAging
+                />
+              ))}
+            </Section>
+          )}
+
+          {entregaTrabalho.length > 0 && (
+            <Section
+              title="Acompanhamento de entrega de trabalho"
+              count={entregaTrabalho.length}
+            >
+              {entregaTrabalho.map((t) => (
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  onEdit={onEdit}
+                  onFinalize={finalize}
+                  showAging
+                />
+              ))}
+            </Section>
+          )}
+        </div>
       )}
     </div>
   )
 }
 
-function FiltroResponsavel({
-  value,
-  onChange,
-  options,
+function FilterBar({
+  query,
+  onQueryChange,
+  responsavel,
+  onResponsavelChange,
+  responsaveis,
+  hasFilter,
+  onClear,
 }: {
-  value: string
-  onChange: (v: string) => void
-  options: string[]
+  query: string
+  onQueryChange: (v: string) => void
+  responsavel: string
+  onResponsavelChange: (v: string) => void
+  responsaveis: string[]
+  hasFilter: boolean
+  onClear: () => void
 }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="text-xs rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1"
-      aria-label="Filtrar por responsável"
-    >
-      <option value={ALL}>Todos</option>
-      {options.map((o) => (
-        <option key={o} value={o}>
-          {o}
-        </option>
-      ))}
-    </select>
+    <div className="flex flex-wrap items-center gap-2">
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => onQueryChange(e.target.value)}
+        placeholder="Buscar por título, cliente, notas…"
+        className="flex-1 min-w-[12rem] rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+        aria-label="Buscar"
+      />
+      <select
+        value={responsavel}
+        onChange={(e) => onResponsavelChange(e.target.value)}
+        className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-2 text-sm"
+        aria-label="Filtrar por responsável"
+      >
+        <option value={ALL}>Todos os responsáveis</option>
+        {responsaveis.map((r) => (
+          <option key={r} value={r}>
+            {isMe(r) ? 'Eu' : r}
+          </option>
+        ))}
+      </select>
+      {hasFilter && (
+        <button
+          onClick={onClear}
+          className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 px-2 py-2"
+          aria-label="Limpar filtros"
+        >
+          Limpar
+        </button>
+      )}
+    </div>
   )
 }
 
 function Section({
   title,
   count,
-  totalCount,
   tone,
-  filter,
   children,
 }: {
   title: string
   count: number
-  totalCount?: number
   tone?: 'late'
-  filter?: ReactNode
   children: ReactNode
 }) {
-  const showingFiltered =
-    typeof totalCount === 'number' && totalCount !== count
   return (
     <section>
       <div className="flex items-center justify-between mb-2 px-1 gap-2">
@@ -248,12 +296,7 @@ function Section({
         >
           {title}
         </h2>
-        <div className="flex items-center gap-2">
-          {filter}
-          <span className="text-xs text-slate-400 tabular-nums">
-            {showingFiltered ? `${count}/${totalCount}` : count}
-          </span>
-        </div>
+        <span className="text-xs text-slate-400 tabular-nums">{count}</span>
       </div>
       <div className="space-y-2">{children}</div>
     </section>
