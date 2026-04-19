@@ -24,17 +24,25 @@ export default function Dashboard({ tasks, loading, onEdit, onReload }: Props) {
   const hasFilter = query.trim().length > 0 || responsavelFiltro !== ALL
 
   // Lista de responsáveis únicos em todas as tarefas ativas, para popular o
-  // dropdown. "Eu" aparece como label amigável.
+  // dropdown. Dedupa case-insensitive (eu/Eu/EU viram uma opção só). Todas
+  // as variações de "eu" são agrupadas sob o valor canônico "eu".
   const responsaveisOptions = useMemo(() => {
-    const nomes = Array.from(new Set(tasks.map((t) => t.responsavel))).sort(
-      (a, b) => {
-        // "eu" no topo
-        if (isMe(a)) return -1
-        if (isMe(b)) return 1
-        return a.localeCompare(b)
-      },
-    )
-    return nomes
+    const mapa = new Map<string, string>() // chave normalizada -> label
+    for (const t of tasks) {
+      const nome = t.responsavel.trim()
+      if (!nome) continue
+      const chave = isMe(nome) ? 'eu' : nome.toLowerCase()
+      if (!mapa.has(chave)) {
+        mapa.set(chave, isMe(nome) ? 'Eu' : nome)
+      }
+    }
+    return Array.from(mapa.entries())
+      .map(([valor, label]) => ({ valor, label }))
+      .sort((a, b) => {
+        if (a.valor === 'eu') return -1
+        if (b.valor === 'eu') return 1
+        return a.label.localeCompare(b.label)
+      })
   }, [tasks])
 
   // Aplica os filtros globais antes de computar as seções.
@@ -143,7 +151,7 @@ export default function Dashboard({ tasks, loading, onEdit, onReload }: Props) {
         onQueryChange={setQuery}
         responsavel={responsavelFiltro}
         onResponsavelChange={setResponsavelFiltro}
-        responsaveis={responsaveisOptions}
+        options={responsaveisOptions}
         hasFilter={hasFilter}
         onClear={() => {
           setQuery('')
@@ -225,7 +233,7 @@ function FilterBar({
   onQueryChange,
   responsavel,
   onResponsavelChange,
-  responsaveis,
+  options,
   hasFilter,
   onClear,
 }: {
@@ -233,7 +241,7 @@ function FilterBar({
   onQueryChange: (v: string) => void
   responsavel: string
   onResponsavelChange: (v: string) => void
-  responsaveis: string[]
+  options: { valor: string; label: string }[]
   hasFilter: boolean
   onClear: () => void
 }) {
@@ -254,9 +262,9 @@ function FilterBar({
         aria-label="Filtrar por responsável"
       >
         <option value={ALL}>Todos os responsáveis</option>
-        {responsaveis.map((r) => (
-          <option key={r} value={r}>
-            {isMe(r) ? 'Eu' : r}
+        {options.map((o) => (
+          <option key={o.valor} value={o.valor}>
+            {o.label}
           </option>
         ))}
       </select>
