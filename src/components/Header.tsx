@@ -10,7 +10,7 @@ export default function Header({ section, onSection, onNew }: Props) {
   return (
     <header className="sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur safe-top">
       <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-2">
-        <h1 className="font-semibold text-lg flex-1">Pendências</h1>
+        <h1 className="font-semibold text-lg flex-1">Painel de Controle Pessoal</h1>
         <nav className="flex rounded-lg bg-slate-100 dark:bg-slate-900 p-0.5 text-sm">
           <button
             onClick={() => onSection('dashboard')}

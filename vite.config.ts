@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Pendências',
-        short_name: 'Pendências',
+        name: 'Painel de Controle Pessoal',
+        short_name: 'Painel Pessoal',
         description: 'Controle pessoal de tarefas e acompanhamentos',
         theme_color: '#0f172a',
         background_color: '#0f172a',

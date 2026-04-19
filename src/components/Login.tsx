@@ -39,7 +39,7 @@ export default function Login() {
               />
             </svg>
           </div>
-          <h1 className="text-2xl font-semibold">Pendências</h1>
+          <h1 className="text-2xl font-semibold">Painel de Controle Pessoal</h1>
           <p className="text-sm text-slate-500 mt-1">Acesso restrito.</p>
         </div>
         <input

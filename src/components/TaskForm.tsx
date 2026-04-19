@@ -97,7 +97,13 @@ export default function TaskForm({
       }
       onSaved()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erro ao salvar.')
+      const msg =
+        (e as { message?: string } | null)?.message ??
+        (typeof e === 'string' ? e : '') ??
+        ''
+      setError(msg || 'Erro ao salvar.')
+      // eslint-disable-next-line no-console
+      console.error('Erro ao salvar tarefa:', e)
     } finally {
       setSaving(false)
     }
