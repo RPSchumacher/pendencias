@@ -30,6 +30,37 @@ export default function App() {
     if (authed) fetchTasks()
   }, [authed])
 
+  // Sincronização automática entre dispositivos: puxa as tarefas do servidor
+  // a cada 30s enquanto a aba estiver visível. Se você edita algo no celular,
+  // o desktop se atualiza sozinho em até 30s (e vice-versa). Quando a aba
+  // volta ao foco, puxa imediatamente — assim não precisa esperar o próximo
+  // tick ao desbloquear o celular.
+  useEffect(() => {
+    if (!authed) return
+
+    const tick = () => {
+      if (document.visibilityState === 'visible') {
+        fetchTasksSilent()
+      }
+    }
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        fetchTasksSilent()
+      }
+    }
+
+    const id = window.setInterval(tick, 30_000)
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [authed])
+
   async function fetchTasks() {
     setLoading(true)
     const { data, error } = await supabase
@@ -38,6 +69,16 @@ export default function App() {
       .order('atualizado_em', { ascending: false })
     if (!error && data) setTasks(data as Task[])
     setLoading(false)
+  }
+
+  // Variante "silenciosa" do fetch usada pelo polling automático. Não mexe no
+  // loading para não piscar "Carregando…" a cada 30 segundos.
+  async function fetchTasksSilent() {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .order('atualizado_em', { ascending: false })
+    if (!error && data) setTasks(data as Task[])
   }
 
   if (authed === null) {

@@ -28,6 +28,7 @@ export default function TaskForm({
   const [entregaTrabalho, setEntregaTrabalho] = useState(
     task?.entrega_trabalho ?? false,
   )
+  const [urgente, setUrgente] = useState(task?.urgente ?? false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -58,6 +59,7 @@ export default function TaskForm({
       prazo: prazo || null,
       notas: notas.trim() || null,
       entrega_trabalho: entregaTrabalho,
+      urgente,
     }
 
     try {
@@ -88,6 +90,7 @@ export default function TaskForm({
             prazo: normalized.prazo,
             notas: finalNotas,
             entrega_trabalho: normalized.entrega_trabalho,
+            urgente: normalized.urgente,
           })
           .eq('id', task.id)
         if (err) throw err
@@ -226,6 +229,31 @@ export default function TaskForm({
             <span className="text-sm">Acompanhamento de entrega de trabalho</span>
             <span className="ml-auto text-xs text-slate-500">
               {entregaTrabalho ? 'Sim' : 'Não'}
+            </span>
+          </label>
+
+          <label
+            className={`flex items-center gap-3 rounded-lg border px-3 py-2 cursor-pointer select-none ${
+              urgente
+                ? 'border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950'
+                : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900'
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={urgente}
+              onChange={(e) => setUrgente(e.target.checked)}
+              className="h-4 w-4 accent-rose-600"
+            />
+            <span className="text-sm">Urgente</span>
+            <span
+              className={`ml-auto text-xs ${
+                urgente
+                  ? 'text-rose-600 dark:text-rose-400 font-medium'
+                  : 'text-slate-500'
+              }`}
+            >
+              {urgente ? 'Sim' : 'Não'}
             </span>
           </label>
 

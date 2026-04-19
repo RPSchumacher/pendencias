@@ -14,15 +14,19 @@ create table if not exists public.tasks (
   prazo             date,
   notas             text,
   entrega_trabalho  boolean not null default false,
+  urgente           boolean not null default false,
   finalizado        boolean not null default false,
   finalizado_em     timestamptz,
   criado_em         timestamptz not null default now(),
   atualizado_em     timestamptz not null default now()
 );
 
--- Migração para bancos existentes: adiciona a coluna se ainda não existir.
+-- Migração para bancos existentes: adiciona as colunas se ainda não existirem.
 alter table public.tasks
   add column if not exists entrega_trabalho boolean not null default false;
+
+alter table public.tasks
+  add column if not exists urgente boolean not null default false;
 
 -- Trigger: toda vez que a linha for atualizada, refresca atualizado_em.
 -- Isso é o que faz o contador de "dias sem movimento" funcionar — quando

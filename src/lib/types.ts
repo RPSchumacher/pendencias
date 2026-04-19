@@ -7,6 +7,7 @@ export interface Task {
   prazo: string | null // YYYY-MM-DD
   notas: string | null
   entrega_trabalho: boolean
+  urgente: boolean
   finalizado: boolean
   finalizado_em: string | null
   criado_em: string
@@ -20,6 +21,7 @@ export type TaskInput = {
   prazo: string | null
   notas: string | null
   entrega_trabalho: boolean
+  urgente: boolean
 }
 
 export type Section = 'dashboard' | 'historico'
