@@ -24,4 +24,14 @@ export type TaskInput = {
   urgente: boolean
 }
 
-export type Section = 'dashboard' | 'historico'
+export type Section = 'dashboard' | 'historico' | 'admin'
+
+export interface Profile {
+  user_id: string
+  email: string | null
+  aprovado: boolean
+  is_admin: boolean
+  criado_em: string
+  aprovado_em: string | null
+  aprovado_por: string | null
+}

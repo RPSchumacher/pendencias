@@ -1,64 +1,20 @@
 -- =============================================================
--- Painel de Controle Pessoal — schema completo
--- Rode este SQL inteiro no Supabase → SQL Editor → New query.
+-- Migração 003 — profiles + aprovação manual + admin
+--
+-- Cria:
+--   * public.profiles (1:1 com auth.users)
+--   * trigger que insere profile ao criar usuário
+--   * policies de profiles (usuário vê o próprio; admin vê e edita todos)
+--   * helper is_admin(uid) — usada nas policies (security definer para
+--     quebrar recursão com RLS de profiles)
+--   * ajuste das policies de tasks para exigir profile.aprovado = true
+--
+-- Pré-aprova como admin o usuário já existente do e-mail informado.
+--
 -- Seguro para rodar múltiplas vezes (idempotente).
 -- =============================================================
 
-create extension if not exists pgcrypto;
-
--- ============== tasks ==============
-
-create table if not exists public.tasks (
-  id                uuid primary key default gen_random_uuid(),
-  user_id           uuid not null references auth.users(id) on delete cascade,
-  titulo            text not null,
-  responsavel       text not null default 'eu',
-  cliente           text,
-  prazo             date,
-  notas             text,
-  entrega_trabalho  boolean not null default false,
-  urgente           boolean not null default false,
-  finalizado        boolean not null default false,
-  finalizado_em     timestamptz,
-  criado_em         timestamptz not null default now(),
-  atualizado_em     timestamptz not null default now()
-);
-
-alter table public.tasks
-  add column if not exists entrega_trabalho boolean not null default false;
-
-alter table public.tasks
-  add column if not exists urgente boolean not null default false;
-
--- Trigger: toda vez que a linha for atualizada, refresca atualizado_em.
-create or replace function public.touch_atualizado_em()
-returns trigger
-language plpgsql
-as $$
-begin
-  new.atualizado_em = now();
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_touch_atualizado_em on public.tasks;
-create trigger trg_touch_atualizado_em
-  before update on public.tasks
-  for each row
-  execute function public.touch_atualizado_em();
-
--- Índices
-create index if not exists idx_tasks_user_finalizado
-  on public.tasks (user_id, finalizado);
-
-create index if not exists idx_tasks_user_atualizado
-  on public.tasks (user_id, atualizado_em desc);
-
-create index if not exists idx_tasks_user_prazo
-  on public.tasks (user_id, prazo);
-
--- ============== profiles (aprovação manual) ==============
-
+-- 1. Tabela
 create table if not exists public.profiles (
   user_id       uuid primary key references auth.users(id) on delete cascade,
   email         text,
@@ -69,21 +25,22 @@ create table if not exists public.profiles (
   aprovado_por  uuid references auth.users(id)
 );
 
--- Backfill para usuários pré-existentes
+-- 2. Backfill: cria profile para todo usuário que já existia em auth.users
 insert into public.profiles (user_id, email)
 select id, email from auth.users
 on conflict (user_id) do nothing;
 
--- Pré-aprova como admin o usuário mais antigo (o dono do app).
+-- 3. Pré-aprova + marca como admin o Ricardo (único usuário pré-existente).
+--    Não usa e-mail hardcoded: pega o usuário mais antigo.
 update public.profiles
 set aprovado    = true,
     is_admin    = true,
-    aprovado_em = coalesce(aprovado_em, now())
+    aprovado_em = now()
 where user_id = (
   select id from auth.users order by created_at asc limit 1
 );
 
--- Trigger on_auth_user_created: cria profile ao surgir novo usuário
+-- 4. Trigger que cria profile quando um novo usuário surge
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -103,7 +60,8 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- is_admin helper (security definer p/ evitar recursão com RLS de profiles)
+-- 5. Helper: é admin? — security definer para ler profiles sem cair
+--    na recursão da própria policy de profiles.
 create or replace function public.is_admin(uid uuid)
 returns boolean
 language sql
@@ -117,28 +75,30 @@ as $$
   );
 $$;
 
--- ============== RLS ==============
-
-alter table public.tasks enable row level security;
+-- 6. RLS em profiles
 alter table public.profiles enable row level security;
 
--- profiles
 drop policy if exists "profiles_select_self_or_admin" on public.profiles;
 create policy "profiles_select_self_or_admin" on public.profiles
   for select using (
     auth.uid() = user_id or public.is_admin(auth.uid())
   );
 
+-- Admin pode atualizar qualquer profile (aprovar / revogar / promover admin).
+-- Usuário comum não pode editar o próprio profile (senão se auto-aprovaria).
 drop policy if exists "profiles_update_admin" on public.profiles;
 create policy "profiles_update_admin" on public.profiles
   for update using (public.is_admin(auth.uid()))
   with check (public.is_admin(auth.uid()));
 
+-- Admin pode deletar (rejeitar / remover usuário do painel).
 drop policy if exists "profiles_delete_admin" on public.profiles;
 create policy "profiles_delete_admin" on public.profiles
   for delete using (public.is_admin(auth.uid()));
 
--- tasks (exige profile aprovado)
+-- Nenhum INSERT via cliente — entra só via trigger (security definer).
+
+-- 7. Ajusta as policies de tasks para exigir profile aprovado
 drop policy if exists "tasks_select_own" on public.tasks;
 create policy "tasks_select_own" on public.tasks
   for select using (
