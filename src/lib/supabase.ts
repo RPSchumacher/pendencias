@@ -17,8 +17,6 @@ export const supabase = createClient(url ?? '', key ?? '', {
   },
 })
 
-export const APP_EMAIL = (import.meta.env.VITE_APP_EMAIL as string) ?? ''
-
 export const ME = 'eu'
 
 export function isMe(responsavel: string): boolean {
