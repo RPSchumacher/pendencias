@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0B1220" />
+  <title>EFCT — Protótipo Institucional</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: { 950: '#07090F', 900: '#0B1220', 800: '#111A2E', 700: '#1B2742' },
+            bone: { 50: '#F7F6F2', 100: '#EFEDE6' },
+            muted: '#8590A8',
+            gold: { 400: '#E8B64C', 500: '#D4A13C', 600: '#B08628' },
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ['Fraunces', 'Georgia', 'serif'],
+          },
+        }
+      }
+    }
+  </script>
+
+  <style>
+    html, body { height: 100%; }
+    body {
+      background: #0B1220;
+      color: #F7F6F2;
+      font-family: 'Inter', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Full-page scroll-snap vertical */
+    .snap-container {
+      height: 100vh;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+      scrollbar-width: none;
+    }
+    .snap-container::-webkit-scrollbar { display: none; }
+
+    .snap-section {
+      height: 100vh;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Reveal animations */
+    .reveal > * {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity .9s cubic-bezier(.2,.7,.2,1), transform .9s cubic-bezier(.2,.7,.2,1);
+    }
+    .reveal.in-view > * { opacity: 1; transform: none; }
+    .reveal.in-view > *:nth-child(1) { transition-delay: .05s }
+    .reveal.in-view > *:nth-child(2) { transition-delay: .18s }
+    .reveal.in-view > *:nth-child(3) { transition-delay: .30s }
+    .reveal.in-view > *:nth-child(4) { transition-delay: .42s }
+    .reveal.in-view > *:nth-child(5) { transition-delay: .54s }
+    .reveal.in-view > *:nth-child(6) { transition-delay: .66s }
+
+    /* Side nav dots */
+    .nav-dot {
+      width: 8px; height: 8px; border-radius: 999px;
+      background: rgba(247,246,242,0.25);
+      transition: all .4s ease;
+    }
+    .nav-dot.active { background: #E8B64C; transform: scale(1.4); }
+    .nav-dot:hover { background: rgba(247,246,242,0.6); }
+
+    /* Horizontal pin section */
+    .horizontal-track {
+      display: flex;
+      height: 100%;
+      width: max-content;
+      transition: transform .2s linear;
+      will-change: transform;
+    }
+    .h-panel {
+      width: 100vw;
+      height: 100%;
+      flex: 0 0 100vw;
+      display: grid;
+      place-items: center;
+      padding: 0 8vw;
+    }
+
+    /* Gradient accents */
+    .gradient-mesh {
+      position: absolute; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(60% 50% at 20% 20%, rgba(232,182,76,.10) 0%, transparent 60%),
+        radial-gradient(40% 40% at 85% 70%, rgba(61,214,195,.08) 0%, transparent 60%);
+    }
+
+    .grain {
+      position: absolute; inset: 0; pointer-events: none; opacity: .035;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    }
+
+    .hair { height: 1px; background: linear-gradient(90deg, transparent, rgba(247,246,242,.25), transparent); }
+
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; letter-spacing: .04em; }
+
+    /* Counter nicety */
+    .counter { font-variant-numeric: tabular-nums; }
+
+    /* Horizontal section takes 4x viewport so scroll maps to horizontal movement */
+    .pin-wrap { height: 400vh; position: relative; }
+    .pin-sticky { position: sticky; top: 0; height: 100vh; overflow: hidden; }
+
+    /* progress bar inside pinned */
+    .progress-bar { height: 2px; background: rgba(247,246,242,.08); position: relative; }
+    .progress-bar > span { position: absolute; left: 0; top: 0; bottom: 0; background: #E8B64C; width: 0%; transition: width .2s ease; }
+
+    @media (max-width: 768px) {
+      .snap-container { scroll-snap-type: y proximity; }
+      .pin-wrap { height: auto; }
+      .pin-sticky { position: static; height: auto; }
+      .horizontal-track { flex-direction: column; width: 100%; transform: none !important; }
+      .h-panel { width: 100%; flex: 0 0 auto; min-height: 80vh; }
+    }
+  </style>
+</head>
+<body class="antialiased">
+
+  <!-- Top bar -->
+  <header class="fixed top-0 inset-x-0 z-40 px-6 md:px-10 py-5 flex items-center justify-between">
+    <a href="#hero" class="flex items-center gap-2 group">
+      <div class="h-8 w-8 rounded-md bg-gradient-to-br from-gold-400 to-gold-600 grid place-items-center text-ink-950 font-display font-semibold">E</div>
+      <span class="font-display text-lg tracking-tight">EFCT</span>
+    </a>
+    <nav class="hidden md:flex items-center gap-8 text-sm text-bone-50/70">
+      <a href="#sobre" class="hover:text-bone-50 transition">Sobre</a>
+      <a href="#servicos" class="hover:text-bone-50 transition">Serviços</a>
+      <a href="#processo" class="hover:text-bone-50 transition">Processo</a>
+      <a href="#cases" class="hover:text-bone-50 transition">Cases</a>
+      <a href="#contato" class="hover:text-bone-50 transition">Contato</a>
+    </nav>
+    <a href="#contato" class="text-sm px-4 py-2 rounded-full border border-bone-50/20 hover:border-gold-400 hover:text-gold-400 transition">
+      Fale conosco →
+    </a>
+  </header>
+
+  <!-- Side nav dots -->
+  <nav id="sideNav" class="fixed right-6 top-1/2 -translate-y-1/2 z-40 hidden md:flex flex-col gap-4">
+    <button data-target="hero" class="nav-dot active" aria-label="Início"></button>
+    <button data-target="sobre" class="nav-dot" aria-label="Sobre"></button>
+    <button data-target="servicos" class="nav-dot" aria-label="Serviços"></button>
+    <button data-target="numeros" class="nav-dot" aria-label="Números"></button>
+    <button data-target="processo" class="nav-dot" aria-label="Processo"></button>
+    <button data-target="cases" class="nav-dot" aria-label="Cases"></button>
+    <button data-target="depoimentos" class="nav-dot" aria-label="Depoimentos"></button>
+    <button data-target="contato" class="nav-dot" aria-label="Contato"></button>
+  </nav>
+
+  <!-- Main scroll container -->
+  <main id="scroller" class="snap-container">
+
+    <!-- HERO -->
+    <section id="hero" class="snap-section flex items-center justify-center px-6">
+      <div class="gradient-mesh"></div>
+      <div class="grain"></div>
+
+      <div class="relative z-10 max-w-5xl reveal text-center md:text-left">
+        <div class="kbd uppercase text-gold-400 mb-6">· Placeholder · EFCT Institucional</div>
+        <h1 class="font-display text-5xl md:text-7xl lg:text-8xl leading-[1.02] tracking-tight mb-8">
+          A engenharia por trás<br/>
+          das decisões que <span class="italic text-gold-400">transformam</span>.
+        </h1>
+        <p class="text-lg md:text-xl text-bone-50/70 max-w-2xl mb-10">
+          [Substituir pelo texto de abertura da EFCT: missão, posicionamento e a
+          promessa central para o cliente.]
+        </p>
+        <div class="flex flex-wrap gap-4 justify-center md:justify-start">
+          <a href="#servicos" class="px-6 py-3 rounded-full bg-gold-400 text-ink-950 font-medium hover:bg-gold-500 transition">
+            Conheça nossos serviços
+          </a>
+          <a href="#contato" class="px-6 py-3 rounded-full border border-bone-50/20 hover:border-bone-50 transition">
+            Falar com um especialista
+          </a>
+        </div>
+      </div>
+
+      <!-- Scroll indicator -->
+      <div class="absolute bottom-10 inset-x-0 flex flex-col items-center gap-2 text-bone-50/40 text-xs kbd">
+        <span>SCROLL</span>
+        <div class="w-px h-10 bg-gradient-to-b from-bone-50/40 to-transparent"></div>
+      </div>
+    </section>
+
+    <!-- SOBRE -->
+    <section id="sobre" class="snap-section flex items-center px-6 md:px-16">
+      <div class="max-w-7xl mx-auto grid md:grid-cols-12 gap-10 w-full reveal">
+        <div class="md:col-span-5">
+          <div class="kbd uppercase text-gold-400 mb-4">02 · Quem somos</div>
+          <h2 class="font-display text-4xl md:text-6xl leading-[1.05] tracking-tight">
+            Uma empresa feita de <span class="italic">precisão</span> e <span class="italic">propósito</span>.
+          </h2>
+        </div>
+        <div class="md:col-span-6 md:col-start-7 space-y-6 text-bone-50/75 text-lg">
+          <p>[Parágrafo 1 — história da EFCT em duas a três frases: quando foi fundada, o que motiva o trabalho, para quem atende.]</p>
+          <p>[Parágrafo 2 — diferencial que ninguém mais entrega do mesmo jeito. Essa é a frase que o leitor vai lembrar depois.]</p>
+          <div class="hair my-8"></div>
+          <div class="grid grid-cols-2 gap-6">
+            <div>
+              <div class="font-display text-4xl text-gold-400">XX</div>
+              <div class="text-sm text-bone-50/60 mt-1">anos de mercado</div>
+            </div>
+            <div>
+              <div class="font-display text-4xl text-gold-400">XX</div>
+              <div class="text-sm text-bone-50/60 mt-1">estados atendidos</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SERVIÇOS -->
+    <section id="servicos" class="snap-section flex items-center px-6 md:px-16">
+      <div class="max-w-7xl mx-auto w-full reveal">
+        <div class="flex items-end justify-between mb-12 flex-wrap gap-4">
+          <div>
+            <div class="kbd uppercase text-gold-400 mb-4">03 · O que fazemos</div>
+            <h2 class="font-display text-4xl md:text-6xl leading-[1.05] tracking-tight max-w-3xl">
+              Serviços desenhados para quem<br/>não aceita <span class="italic">quase-certo</span>.
+            </h2>
+          </div>
+          <p class="text-bone-50/60 max-w-sm">[Um parágrafo curto de ponte — como os serviços se conectam ao propósito.]</p>
+        </div>
+
+        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Card 1 -->
+          <article class="group relative p-8 rounded-2xl bg-ink-800/60 border border-bone-50/5 hover:border-gold-400/40 transition cursor-pointer overflow-hidden">
+            <div class="kbd text-gold-400 mb-6">01</div>
+            <h3 class="font-display text-2xl mb-3">Serviço A</h3>
+            <p class="text-bone-50/60 text-sm leading-relaxed">[Descrição curta do primeiro pilar de atuação. Uma ou duas frases.]</p>
+            <div class="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition text-gold-400">→</div>
+          </article>
+          <article class="group relative p-8 rounded-2xl bg-ink-800/60 border border-bone-50/5 hover:border-gold-400/40 transition cursor-pointer overflow-hidden">
+            <div class="kbd text-gold-400 mb-6">02</div>
+            <h3 class="font-display text-2xl mb-3">Serviço B</h3>
+            <p class="text-bone-50/60 text-sm leading-relaxed">[Descrição curta do segundo pilar de atuação.]</p>
+            <div class="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition text-gold-400">→</div>
+          </article>
+          <article class="group relative p-8 rounded-2xl bg-ink-800/60 border border-bone-50/5 hover:border-gold-400/40 transition cursor-pointer overflow-hidden">
+            <div class="kbd text-gold-400 mb-6">03</div>
+            <h3 class="font-display text-2xl mb-3">Serviço C</h3>
+            <p class="text-bone-50/60 text-sm leading-relaxed">[Descrição curta do terceiro pilar de atuação.]</p>
+            <div class="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition text-gold-400">→</div>
+          </article>
+          <article class="group relative p-8 rounded-2xl bg-ink-800/60 border border-bone-50/5 hover:border-gold-400/40 transition cursor-pointer overflow-hidden">
+            <div class="kbd text-gold-400 mb-6">04</div>
+            <h3 class="font-display text-2xl mb-3">Serviço D</h3>
+            <p class="text-bone-50/60 text-sm leading-relaxed">[Descrição curta do quarto pilar de atuação.]</p>
+            <div class="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition text-gold-400">→</div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- NÚMEROS -->
+    <section id="numeros" class="snap-section flex items-center px-6 md:px-16">
+      <div class="gradient-mesh"></div>
+      <div class="max-w-7xl mx-auto w-full reveal relative">
+        <div class="kbd uppercase text-gold-400 mb-4">04 · Em números</div>
+        <h2 class="font-display text-4xl md:text-6xl leading-[1.05] tracking-tight mb-16 max-w-3xl">
+          Resultado não é discurso.<br/><span class="italic text-gold-400">Conta-se.</span>
+        </h2>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-4">
+          <div>
+            <div class="counter font-display text-6xl md:text-7xl text-bone-50" data-to="250">0</div>
+            <div class="hair my-3 w-12"></div>
+            <div class="text-sm text-bone-50/60">projetos entregues</div>
+          </div>
+          <div>
+            <div class="counter font-display text-6xl md:text-7xl text-bone-50" data-to="98">0</div>
+            <div class="hair my-3 w-12"></div>
+            <div class="text-sm text-bone-50/60">% de satisfação</div>
+          </div>
+          <div>
+            <div class="counter font-display text-6xl md:text-7xl text-bone-50" data-to="18">0</div>
+            <div class="hair my-3 w-12"></div>
+            <div class="text-sm text-bone-50/60">anos de estrada</div>
+          </div>
+          <div>
+            <div class="counter font-display text-6xl md:text-7xl text-bone-50" data-to="42">0</div>
+            <div class="hair my-3 w-12"></div>
+            <div class="text-sm text-bone-50/60">especialistas no time</div>
+          </div>
+        </div>
+
+        <p class="mt-16 text-bone-50/50 text-sm">[Substituir números pelos reais da EFCT.]</p>
+      </div>
+    </section>
+
+    <!-- PROCESSO (pin horizontal) -->
+    <section id="processo" class="snap-section p-0">
+      <div class="pin-wrap relative">
+        <div class="pin-sticky flex items-center">
+          <div class="absolute top-10 left-6 md:left-16 z-10">
+            <div class="kbd uppercase text-gold-400 mb-2">05 · Metodologia</div>
+            <h2 class="font-display text-3xl md:text-5xl leading-[1.05] tracking-tight">Como trabalhamos.</h2>
+          </div>
+
+          <!-- progress -->
+          <div class="absolute bottom-20 left-6 md:left-16 right-6 md:right-16 z-10">
+            <div class="progress-bar"><span id="hProgress"></span></div>
+            <div class="flex justify-between text-xs text-bone-50/40 mt-3 kbd">
+              <span>01</span><span>02</span><span>03</span><span>04</span>
+            </div>
+          </div>
+
+          <div id="hTrack" class="horizontal-track">
+            <div class="h-panel">
+              <div class="max-w-2xl">
+                <div class="font-display text-7xl md:text-9xl text-gold-400/40 leading-none mb-4">01</div>
+                <h3 class="font-display text-3xl md:text-5xl mb-4">Entender</h3>
+                <p class="text-bone-50/70 text-lg">[Descrição da primeira etapa da metodologia. O que é investigado, com quem, por quanto tempo.]</p>
+              </div>
+            </div>
+            <div class="h-panel">
+              <div class="max-w-2xl">
+                <div class="font-display text-7xl md:text-9xl text-gold-400/40 leading-none mb-4">02</div>
+                <h3 class="font-display text-3xl md:text-5xl mb-4">Desenhar</h3>
+                <p class="text-bone-50/70 text-lg">[Descrição da segunda etapa — como a solução é modelada, quais entregáveis o cliente vê nesse ponto.]</p>
+              </div>
+            </div>
+            <div class="h-panel">
+              <div class="max-w-2xl">
+                <div class="font-display text-7xl md:text-9xl text-gold-400/40 leading-none mb-4">03</div>
+                <h3 class="font-display text-3xl md:text-5xl mb-4">Executar</h3>
+                <p class="text-bone-50/70 text-lg">[Descrição da terceira etapa — rituais de execução, cadência de reporting, como time e cliente interagem.]</p>
+              </div>
+            </div>
+            <div class="h-panel">
+              <div class="max-w-2xl">
+                <div class="font-display text-7xl md:text-9xl text-gold-400/40 leading-none mb-4">04</div>
+                <h3 class="font-display text-3xl md:text-5xl mb-4">Sustentar</h3>
+                <p class="text-bone-50/70 text-lg">[Descrição da quarta etapa — o que acontece depois do projeto, garantia, continuidade, evolução.]</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CASES -->
+    <section id="cases" class="snap-section flex items-center px-6 md:px-16">
+      <div class="max-w-7xl mx-auto w-full reveal">
+        <div class="kbd uppercase text-gold-400 mb-4">06 · Cases & Clientes</div>
+        <h2 class="font-display text-4xl md:text-6xl leading-[1.05] tracking-tight mb-12">
+          Quem confia no nosso trabalho.
+        </h2>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-12">
+          <!-- placeholders para logos -->
+          <div class="aspect-[3/2] rounded-xl bg-ink-800/60 border border-bone-50/5 grid place-items-center text-bone-50/30 text-xs">logo 01</div>
+          <div class="aspect-[3/2] rounded-xl bg-ink-800/60 border border-bone-50/5 grid place-items-center text-bone-50/30 text-xs">logo 02</div>
+          <div class="aspect-[3/2] rounded-xl bg-ink-800/60 border border-bone-50/5 grid place-items-center text-bone-50/30 text-xs">logo 03</div>
+          <div class="aspect-[3/2] rounded-xl bg-ink-800/60 border border-bone-50/5 grid place-items-center text-bone-50/30 text-xs">logo 04</div>
+          <div class="aspect-[3/2] rounded-xl bg-ink-800/60 border border-bone-50/5 grid place-items-center text-bone-50/30 text-xs">logo 05</div>
+          <div class="aspect-[3/2] rounded-xl bg-ink-800/60 border border-bone-50/5 grid place-items-center text-bone-50/30 text-xs">logo 06</div>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-4">
+          <article class="p-8 rounded-2xl bg-gradient-to-br from-ink-800 to-ink-900 border border-bone-50/5">
+            <div class="kbd text-gold-400 mb-4">CASE · SETOR</div>
+            <h3 class="font-display text-2xl mb-3">[Título curto do case]</h3>
+            <p class="text-bone-50/60 text-sm mb-6">[Uma frase com o resultado mais impactante.]</p>
+            <a href="#" class="text-gold-400 text-sm hover:underline">Ler o case →</a>
+          </article>
+          <article class="p-8 rounded-2xl bg-gradient-to-br from-ink-800 to-ink-900 border border-bone-50/5">
+            <div class="kbd text-gold-400 mb-4">CASE · SETOR</div>
+            <h3 class="font-display text-2xl mb-3">[Título curto do case]</h3>
+            <p class="text-bone-50/60 text-sm mb-6">[Uma frase com o resultado mais impactante.]</p>
+            <a href="#" class="text-gold-400 text-sm hover:underline">Ler o case →</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEPOIMENTOS -->
+    <section id="depoimentos" class="snap-section flex items-center px-6 md:px-16">
+      <div class="max-w-4xl mx-auto w-full reveal text-center">
+        <div class="kbd uppercase text-gold-400 mb-4">07 · O que dizem</div>
+        <blockquote class="font-display text-3xl md:text-5xl leading-[1.15] tracking-tight mb-10">
+          <span class="text-gold-400">"</span>[Depoimento de um cliente — a frase que resume por que vale a pena trabalhar com a EFCT.]<span class="text-gold-400">"</span>
+        </blockquote>
+        <div class="flex items-center justify-center gap-4">
+          <div class="h-12 w-12 rounded-full bg-gold-400/20 border border-gold-400/40"></div>
+          <div class="text-left">
+            <div class="font-medium">[Nome do cliente]</div>
+            <div class="text-sm text-bone-50/50">[Cargo · Empresa]</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTATO -->
+    <section id="contato" class="snap-section flex items-center px-6 md:px-16">
+      <div class="gradient-mesh"></div>
+      <div class="max-w-7xl mx-auto w-full reveal relative grid md:grid-cols-12 gap-10">
+        <div class="md:col-span-7">
+          <div class="kbd uppercase text-gold-400 mb-4">08 · Vamos conversar</div>
+          <h2 class="font-display text-4xl md:text-7xl leading-[1.02] tracking-tight mb-6">
+            Tem um desafio?<br/>A gente <span class="italic text-gold-400">entende</span>.
+          </h2>
+          <p class="text-bone-50/60 text-lg max-w-lg mb-10">[Texto convidativo final — uma frase que reforça quem é o cliente ideal e como começar.]</p>
+
+          <div class="space-y-4">
+            <a href="mailto:contato@efct.com.br" class="flex items-center gap-4 group">
+              <div class="h-10 w-10 rounded-full border border-bone-50/20 grid place-items-center group-hover:border-gold-400 transition">@</div>
+              <span class="group-hover:text-gold-400 transition">contato@efct.com.br</span>
+            </a>
+            <a href="tel:+55" class="flex items-center gap-4 group">
+              <div class="h-10 w-10 rounded-full border border-bone-50/20 grid place-items-center group-hover:border-gold-400 transition">☎</div>
+              <span class="group-hover:text-gold-400 transition">+55 (XX) XXXX-XXXX</span>
+            </a>
+          </div>
+        </div>
+
+        <form class="md:col-span-5 md:col-start-8 p-8 rounded-2xl bg-ink-800/60 border border-bone-50/5 space-y-4">
+          <div>
+            <label class="kbd text-xs text-bone-50/50 uppercase">Nome</label>
+            <input type="text" class="w-full bg-transparent border-b border-bone-50/20 focus:border-gold-400 outline-none py-2 mt-1"/>
+          </div>
+          <div>
+            <label class="kbd text-xs text-bone-50/50 uppercase">Email</label>
+            <input type="email" class="w-full bg-transparent border-b border-bone-50/20 focus:border-gold-400 outline-none py-2 mt-1"/>
+          </div>
+          <div>
+            <label class="kbd text-xs text-bone-50/50 uppercase">Mensagem</label>
+            <textarea rows="3" class="w-full bg-transparent border-b border-bone-50/20 focus:border-gold-400 outline-none py-2 mt-1 resize-none"></textarea>
+          </div>
+          <button type="button" class="w-full mt-4 py-3 rounded-full bg-gold-400 text-ink-950 font-medium hover:bg-gold-500 transition">
+            Enviar mensagem
+          </button>
+        </form>
+
+        <footer class="md:col-span-12 mt-10 pt-6 border-t border-bone-50/10 flex flex-wrap items-center justify-between text-xs text-bone-50/40 kbd">
+          <span>© EFCT · Todos os direitos reservados</span>
+          <span>Protótipo v0.1 — aguardando identidade visual</span>
+        </footer>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // Section detection + side nav
+    const scroller = document.getElementById('scroller');
+    const sections = document.querySelectorAll('.snap-section');
+    const dots = document.querySelectorAll('#sideNav .nav-dot');
+
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in-view');
+          const id = entry.target.id;
+          dots.forEach(d => d.classList.toggle('active', d.dataset.target === id));
+        }
+      });
+    }, { root: scroller, threshold: 0.4 });
+
+    sections.forEach(s => io.observe(s));
+
+    dots.forEach(d => {
+      d.addEventListener('click', () => {
+        const el = document.getElementById(d.dataset.target);
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+
+    // Counter animation
+    const counterIO = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const el = entry.target;
+        if (el.dataset.done) return;
+        el.dataset.done = '1';
+        const to = +el.dataset.to;
+        const dur = 1400;
+        const t0 = performance.now();
+        const step = (t) => {
+          const p = Math.min(1, (t - t0) / dur);
+          const eased = 1 - Math.pow(1 - p, 3);
+          el.textContent = Math.round(to * eased);
+          if (p < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      });
+    }, { root: scroller, threshold: 0.5 });
+
+    document.querySelectorAll('.counter').forEach(c => counterIO.observe(c));
+
+    // Horizontal pin — scroll inside #processo drives horizontal translate
+    const processo = document.getElementById('processo');
+    const track = document.getElementById('hTrack');
+    const progress = document.getElementById('hProgress');
+    const pinWrap = processo.querySelector('.pin-wrap');
+
+    // When user is inside #processo, we intercept wheel to drive horizontal.
+    // Simpler approach: map the vertical scroll position INSIDE processo to horizontal translate.
+    // Since scroll-snap keeps outer scroller on sections, we'll use wheel event inside processo.
+    let hPos = 0;      // 0 -> 1 (progress through horizontal)
+    const maxPanels = 4;
+
+    function updateTrack() {
+      const maxTranslate = (maxPanels - 1) * window.innerWidth;
+      track.style.transform = `translateX(-${hPos * maxTranslate}px)`;
+      progress.style.width = `${hPos * 100}%`;
+    }
+
+    let insideProcesso = false;
+    const procIO = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        insideProcesso = e.isIntersecting && e.intersectionRatio > 0.6;
+      });
+    }, { root: scroller, threshold: [0.6] });
+    procIO.observe(processo);
+
+    scroller.addEventListener('wheel', (e) => {
+      if (!insideProcesso) return;
+      if (window.innerWidth < 768) return; // mobile: let native vertical scroll handle
+      const delta = e.deltaY;
+      const next = hPos + delta / 1200;
+      // if at bounds, allow vertical scroll to continue (switch to next section)
+      if ((next <= 0 && delta < 0) || (next >= 1 && delta > 0)) {
+        return;
+      }
+      e.preventDefault();
+      hPos = Math.max(0, Math.min(1, next));
+      updateTrack();
+    }, { passive: false });
+
+    // Keyboard nav (arrows + pgup/pgdn)
+    window.addEventListener('keydown', (e) => {
+      const active = document.querySelector('.snap-section.in-view') || sections[0];
+      let idx = Array.from(sections).indexOf(active);
+      if (['ArrowDown','PageDown',' '].includes(e.key)) { idx = Math.min(sections.length - 1, idx + 1); sections[idx].scrollIntoView({behavior:'smooth'}); }
+      if (['ArrowUp','PageUp'].includes(e.key)) { idx = Math.max(0, idx - 1); sections[idx].scrollIntoView({behavior:'smooth'}); }
+    });
+
+    // Header nav links
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', (e) => {
+        const id = a.getAttribute('href').slice(1);
+        const el = document.getElementById(id);
+        if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth' }); }
+      });
+    });
+  </script>
+</body>
+</html>
