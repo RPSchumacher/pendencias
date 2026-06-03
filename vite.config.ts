@@ -42,20 +42,14 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api',
-              networkTimeoutSeconds: 10,
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24,
-              },
-            },
-          },
-        ],
+        // Não interceptar nenhuma chamada ao Supabase: o SW só serve o shell do
+        // app offline (HTML/JS/CSS). Auth e dados sempre vão direto à rede,
+        // evitando "Load failed" quando o handler em cache responde mal.
+        navigateFallbackDenylist: [/^\/api/, /\.supabase\.co/],
+        // Substitui o SW antigo imediatamente em vez de esperar o usuário
+        // fechar todas as abas. Crítico para fazer a correção chegar rápido.
+        clientsClaim: true,
+        skipWaiting: true,
       },
     }),
   ],
